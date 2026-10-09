@@ -10,19 +10,19 @@ PayrollOps is a global payroll operations dashboard pilot. It is a **frontend-on
 
 All data is deterministic, synthetic, and local. Every action that changes data (approve, reject, resolve, assign) is **simulated**: it updates in-memory state, is shown in the UI as simulated, and resets on reload or via "Reset demo data". Nothing is persisted, and nothing represents a real payment, a real employee, or a security boundary.
 
-Status: the React/Vite foundation (project generation, Vite, Tailwind, Vitest + React Testing Library, router skeleton) is in place and verified. The design system, application shell, and all feature modules are not built yet. Modules, in delivery order: application shell, Overview, Payroll Runs, Payroll Details with simulated approval (MVP); then Exceptions, Approvals, Audit Activity, Employees directory.
+Status: the foundation, the design system (`docs/engineering/design-system.md`), the application shell, and the Overview page are built. The other modules are placeholder pages that say they are not built yet. Remaining modules, in delivery order: Payroll Runs, Payroll Details with simulated approval (MVP); then Exceptions, Approvals, Audit Activity, Employees directory.
 
 ## Architecture
 
 - Client-only single-page app. No backend, database, mock server, API client, or artificial latency.
-- Feature-oriented `src/`: `app/` (router, layout), `components/ui/` (shadcn primitives, added on demand), `features/<name>/` (components, hooks, types, tests), `fixtures/` (seeded builders, no UI imports), `lib/` (pure helpers and the shared store), `styles/`, `test/`.
-- Shared state (run status, exceptions, audit events) is a small store: pure reducers `(state, action) => state`, exposed through `useSyncExternalStore` selector hooks. If the store grows beyond about 60 lines or needs custom equality or memoization, switch to narrowly scoped Contexts per slice instead.
+- Feature-oriented `src/`: `app/` (router, shell, navigation), `components/` (shared pieces such as `PageHeader` and the status badges) and `components/ui/` (hand-written `Button`, `Badge`, `Card`), `features/<name>/` (components and pure logic with their tests; only `overview/` exists so far), `fixtures/` (typed synthetic data, no UI imports), `lib/` (formatting and status presentation helpers), `styles/` (tokens), `test/` (setup and render helper).
+- There is no shared mutable state yet: the Overview reads fixed fixtures through the pure function `buildOverview` (`features/overview/summary.ts`). When simulated approvals arrive, shared state (run status, exceptions, audit events) will be a small store: pure reducers `(state, action) => state`, exposed through `useSyncExternalStore` selector hooks. If the store grows beyond about 60 lines or needs custom equality or memoization, switch to narrowly scoped Contexts per slice instead.
 - Table, sort, filter, and page state lives in URL search params. Dialog and draft state is local to its feature.
 - No loading or error states: data is synchronous. Empty states are required.
 
 ## Commands
 
-All commands below were verified at the end of milestone M3 from a clean `npm ci`.
+The commands below were verified from a clean `npm ci` at the end of milestone M3 and re-run after the design-system, shell, and Overview work (milestones M4 and M5).
 
 | Task | Command |
 |------|---------|
@@ -45,7 +45,7 @@ Install note: if the user-level npm cache is not writable, use a temporary cache
 
 ## Technology decisions
 
-Installed now: React, TypeScript, Vite, Tailwind CSS, React Router, Vitest + React Testing Library + jest-dom + user-event + jsdom, vitest-axe (for its `axe` function). The remaining rows (TanStack Table, Recharts, Zod, Cypress, Storybook, shadcn/ui primitives) are **planned** and are added only by the task that needs them.
+Installed now: React, TypeScript, Vite, Tailwind CSS, React Router, class-variance-authority, lucide-react, Recharts, Vitest + React Testing Library + jest-dom + user-event + jsdom, vitest-axe (for its `axe` function). The remaining rows (TanStack Table, Zod, Cypress, Storybook) are **planned** and are added only by the task that needs them.
 
 | Area | Decision |
 |------|----------|
@@ -53,19 +53,22 @@ Installed now: React, TypeScript, Vite, Tailwind CSS, React Router, Vitest + Rea
 | Routing | React Router (data router; `routes` array in `src/app/routes.tsx`, tested with a memory router) |
 | Linting | oxlint, the linter shipped with the current Vite template. Accepted for this pilot instead of ESLint + typescript-eslint; do not swap it without a reason |
 | Path alias | `@` maps to `src/` (set in `vite.config.ts`, and in `tsconfig.json` and `tsconfig.app.json`; keep all three in sync) |
-| Styling | Tailwind CSS 4 (Vite plugin) now; shadcn/ui primitives are added on demand once the M4 shadcn strategy is decided (see below) |
+| Styling | Tailwind CSS 4 (Vite plugin) with the tokens in `src/styles/index.css`; UI primitives are hand-written in the shadcn style (see `design-system.md`), not generated by the shadcn CLI |
+| Icons | lucide-react |
+| Variants | class-variance-authority, with the `cn` helper (`clsx` + `tailwind-merge`) |
+| Charts | Recharts (the Overview country chart; it brings Redux Toolkit transitively as an internal detail, which the app does not use) |
 | Tables | TanStack Table |
-| Charts | Recharts |
 | Validation | Zod (fixture schema, reject-reason input); controlled inputs, no form library |
 | Tests | Vitest + React Testing Library + jest-dom (jsdom), vitest-axe; Cypress for 3-4 critical journeys; Storybook at the quality gate |
 | Package manager | npm |
 | Not used | TanStack Query, Redux or Zustand, Jest, MSW, any mock server |
 
-## Foundation state and open decisions
+## Foundation state and decisions
 
-- `components.json` and `src/lib/utils.ts` (a `cn` helper built on `clsx` and `tailwind-merge`) were created by hand after inspecting what the shadcn CLI generates on a scratch copy. The CLI was not run in this project because it adds packages that are not yet approved (`cn`, `@fontsource-variable/geist`, `radix-ui`, `shadcn`, `tw-animate-css`) and a default Button.
-- `src/styles/index.css` currently only imports Tailwind. Design tokens are added in the design-system task (S1).
-- The foundation has a placeholder layout and placeholder pages only; the real shell is milestone M4.
+- `components.json` and `src/lib/utils.ts` (the `cn` helper) were created by hand after inspecting what the shadcn CLI generates on a scratch copy. The CLI has not been run in this project: it would add `cn` (a third-party package), `@fontsource-variable/geist`, `radix-ui`, `shadcn`, `tw-animate-css` and a default Button. Revisit if a primitive needs real focus-trapping or positioning (for example a modal dialog or menu).
+- The mobile navigation is a disclosure, not a modal; see `design-system.md`.
+- Data dates come from `REFERENCE_DATE` in `src/fixtures/reference.ts`, which is the fixed "today" for all synthetic data and for relative dates such as "in 2 days".
+- Known limitations: on the narrowest phones the chart axis label "United Kingdom" wraps onto two lines; Recharts is bundled eagerly (about 208 kB gzipped in total), so the profile's advice to load heavy charts lazily is not yet applied.
 - `src/app/App.tsx` creates the browser router once at module scope (the documented pattern). Tests that need a specific route or navigation must use `createMemoryRouter(routes, ...)`, as `routes.test.tsx` does, and not render `<App />`.
 - The accessibility test uses `axe` results directly (`expect(results.violations).toEqual([])`) because the `vitest-axe` matcher types do not compile with the installed Vitest version.
 
