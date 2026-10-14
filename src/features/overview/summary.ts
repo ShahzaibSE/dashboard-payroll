@@ -8,7 +8,7 @@ import type {
   Region,
   RunStatus,
 } from '@/fixtures'
-import { daysBetween, formatShortDate, relativeDays } from '@/lib/format'
+import { daysBetween, formatEventTime, formatShortDate, relativeDays } from '@/lib/format'
 import { runStatusOrder } from '@/lib/payroll-status'
 
 export type OverviewInput = {
@@ -165,17 +165,14 @@ export function buildOverview(input: OverviewInput): Overview {
     activity: [...input.events]
       .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || a.id.localeCompare(b.id))
       .slice(0, ACTIVITY_LIMIT)
-      .map((e) => {
-        const [date, time] = e.occurredAt.split('T')
-        return {
-          id: e.id,
-          occurredAt: e.occurredAt,
-          when: `${daysBetween(today, date) === 0 ? 'Today' : formatShortDate(date)}, ${time} UTC`,
-          actor: e.actor,
-          action: e.action,
-          runId: e.runId,
-          runLabel: runLabel(mustFind(runById, e.runId, 'run')),
-        }
-      }),
+      .map((e) => ({
+        id: e.id,
+        occurredAt: e.occurredAt,
+        when: formatEventTime(today, e.occurredAt),
+        actor: e.actor,
+        action: e.action,
+        runId: e.runId,
+        runLabel: runLabel(mustFind(runById, e.runId, 'run')),
+      })),
   }
 }

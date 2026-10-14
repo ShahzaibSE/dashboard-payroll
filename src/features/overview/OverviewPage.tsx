@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import KpiCard from '@/features/overview/KpiCard'
 import NeedsAttention from '@/features/overview/NeedsAttention'
 import PayrollByCountry from '@/features/overview/PayrollByCountry'
@@ -6,20 +7,16 @@ import RecentRuns from '@/features/overview/RecentRuns'
 import RunStatusBreakdown from '@/features/overview/RunStatusBreakdown'
 import { buildOverview } from '@/features/overview/summary'
 import PageHeader from '@/components/PageHeader'
-import { activityEvents, countries, exceptions, organizations, payrollRuns, REFERENCE_DATE } from '@/fixtures'
+import { countries, organizations, REFERENCE_DATE } from '@/fixtures'
 import { formatCompactUsd, formatInteger, formatShortDate, formatUsd } from '@/lib/format'
-
-// The data is static, so the derivation runs once when the module loads.
-const overview = buildOverview({
-  today: REFERENCE_DATE,
-  organizations,
-  countries,
-  runs: payrollRuns,
-  exceptions,
-  events: activityEvents,
-})
+import { usePayrollState } from '@/state/payroll/context'
 
 export default function OverviewPage() {
+  const { runs, exceptions, events } = usePayrollState()
+  const overview = useMemo(
+    () => buildOverview({ today: REFERENCE_DATE, organizations, countries, runs, exceptions, events }),
+    [runs, exceptions, events],
+  )
   const { awaitingApproval, unresolvedExceptions, paymentsDue, cycle } = overview
   return (
     <>

@@ -4,6 +4,7 @@ import { Outlet, ScrollRestoration, useLocation } from 'react-router'
 import PrimaryNav from '@/app/PrimaryNav'
 import SimulationNotice from '@/app/SimulationNotice'
 import { Button } from '@/components/ui/button'
+import { usePayrollDispatch } from '@/state/payroll/context'
 
 export default function AppShell() {
   const location = useLocation()
@@ -12,6 +13,8 @@ export default function AppShell() {
   const [menu, setMenu] = useState({ open: false, routeKey })
   if (menu.routeKey !== routeKey) setMenu({ open: false, routeKey })
   const open = menu.open && menu.routeKey === routeKey
+  const dispatch = usePayrollDispatch()
+  const [resetCount, setResetCount] = useState(0)
   const menuButton = useRef<HTMLButtonElement>(null)
   const main = useRef<HTMLElement>(null)
   const previousPath = useRef(location.pathname)
@@ -65,8 +68,21 @@ export default function AppShell() {
           </Button>
           <span className="font-semibold lg:hidden">PayrollOps</span>
           <p className="hidden text-sm text-muted-foreground lg:block">APAC and EMEA payroll operations</p>
-          <div className="w-full sm:ml-auto sm:w-auto">
+          <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 sm:ml-auto sm:w-auto">
             <SimulationNotice />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                dispatch({ type: 'demo/reset' })
+                setResetCount((count) => count + 1)
+              }}
+            >
+              Reset demo data
+            </Button>
+            <span aria-live="polite" className="sr-only">
+              {resetCount === 0 ? '' : `Demo data reset to the original synthetic data (reset ${resetCount}).`}
+            </span>
           </div>
         </div>
       </header>

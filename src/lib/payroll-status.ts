@@ -3,6 +3,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleDashed,
+  CircleDot,
   CirclePause,
   Clock,
   Eye,
@@ -11,7 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { BadgeTone } from '@/components/ui/badge'
-import type { ExceptionSeverity, RunStatus } from '@/fixtures'
+import type { ExceptionSeverity, ExceptionStatus, RunStatus } from '@/fixtures'
 
 type Presentation = { label: string; tone: BadgeTone; icon: LucideIcon }
 
@@ -25,6 +26,18 @@ export const runStatusPresentation: Record<RunStatus, Presentation> = {
   approved: { label: 'Approved', tone: 'success', icon: CircleCheck },
   paid: { label: 'Paid', tone: 'neutral', icon: Banknote },
   on_hold: { label: 'On hold', tone: 'danger', icon: CirclePause },
+}
+
+/** Most urgent first, used wherever exceptions are ordered by severity. */
+export const severityOrder: ExceptionSeverity[] = ['critical', 'high', 'medium', 'low']
+
+/** Lifecycle order of an exception, used when sorting by status. */
+export const exceptionStatusOrder: ExceptionStatus[] = ['open', 'in_progress', 'resolved']
+
+export const exceptionStatusPresentation: Record<ExceptionStatus, Presentation> = {
+  open: { label: 'Open', tone: 'warning', icon: CircleDot },
+  in_progress: { label: 'In progress', tone: 'info', icon: Clock },
+  resolved: { label: 'Resolved', tone: 'success', icon: CircleCheck },
 }
 
 export const severityPresentation: Record<ExceptionSeverity, Presentation> = {

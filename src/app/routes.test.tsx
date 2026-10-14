@@ -6,7 +6,8 @@ describe('routes', () => {
   it.each([
     ['/', 'Overview'],
     ['/payroll-runs', 'Payroll runs'],
-    ['/payroll-runs/run-001', 'Payroll run details'],
+    ['/payroll-runs/run-2026-10-010', 'Orchard Row Retail · United Kingdom'],
+    ['/payroll-runs/run-001', 'Payroll run not found'],
     ['/exceptions', 'Exceptions'],
     ['/approvals', 'Approvals'],
     ['/audit', 'Audit activity'],
