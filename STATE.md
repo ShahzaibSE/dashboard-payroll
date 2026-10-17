@@ -5,49 +5,30 @@ Current resumable project state. Keep it concise and operational: replace or rem
 
 ## Status
 
-M1–M8 complete. M6–M8 are committed as one local checkpoint on `main` (not pushed). The next session starts at M9.
+M1–M9 implemented. M1–M8 are committed (`6fe761d`, published on `feat/payrollops-m6-m8`). M9 is committed locally on the same branch (not pushed), awaiting a publication decision.
 
 ## Implemented
 
-- Overview
-- Payroll Runs (search, filters, sort, URL state)
-- Payroll Details
-- Simulated approval workflow (submit, approve, reject with a reason, take and resolve exceptions, Reset demo data)
-- Exceptions
-- Approvals
-- Audit Activity
-- Employees sample directory (fictional, tied to organisation and country only, no run link)
+- Overview, Payroll Runs, Payroll Details, Exceptions, Approvals, Audit Activity, Employees sample directory (fictional, organisation and country only, no run link)
+- Simulated workflow (submit, approve, reject with a reason, take and resolve exceptions, Reset demo data)
+- M9: `useUrlDraft` follows every navigation the page did not write (`OWN_URL_WRITE` marker, `location.key`); per-file test timeouts; focusable `aria-disabled` Approve; shorter mobile header; `ResultCount` with a debounced live region; shared `createPlacement`; `describeEvent` re-export removed; `transitions.test.ts` finds scenarios by property instead of fixture id
 
 ## Architecture
 
-- React, TypeScript, Vite
-- Pure reducer and a single Provider (separate state and dispatch Contexts); business rules in pure `transitions.ts` guards shared by the UI and the reducer
-- Deterministic synthetic fixtures (fixed reference date, deterministic audit ids and timestamps)
-- Frontend-only; no backend, persistence, or network calls
-- Every URL-driven list page uses the `useUrlDraft` pattern (`src/lib/useUrlDraft.ts`)
+- React, TypeScript, Vite; pure reducer and single Provider; business rules in pure `transitions.ts`
+- Deterministic synthetic fixtures; frontend-only, no persistence or network
+- URL-driven list pages use `useUrlDraft` (`src/lib/useUrlDraft.ts`) and write with `OWN_URL_WRITE`
 
 ## Verification
 
-Final results before the checkpoint commit, run sequentially with no concurrent runners:
-
-- `npm run typecheck`: exit 0
-- `npm run lint`: exit 0, clean
-- `npm test`: exit 0, 403 tests passed across 30 files (about 13 s)
-- `npm run build`: exit 0, JS 228.68 kB gzipped, CSS 5.56 kB gzipped (JS was 209 kB at M5; `zod` is the only dependency added since)
-- `git diff --check`: clean
-- Real-browser (Playwright) checks passed at 1280, 768 and 360 px for every page during M7–M8, including the filter-race stabilization (86 checks plus 8 keyboard checks).
+M9 results, run sequentially: typecheck exit 0; lint clean; `npm test` 419 passed across 33 files (about 11 s; 3 repeat runs identical; 3 runs with 24 CPU spinners on 8 cores passed in about 38 s); `npm run build` exit 0, JS 228.80 kB gzipped (228.68 at M8), CSS 5.58 kB; `git diff --check` clean. Playwright: no horizontal overflow on 8 routes at 1280/768/360 px, no console errors, no requests to other hosts, no localStorage/cookies (only the router's scroll positions in sessionStorage), same-link and fast-typing checks, focus after a workflow action.
 
 ## Known issues
 
-- Narrow same-URL PUSH synchronization edge case: a link to the page's current URL clicked within the navigation delay (about 15 ms) can leave the draft and URL different. Keying `useUrlDraft` on `useLocation().key` would fix it.
-- External REPLACE synchronization limitation: `useUrlDraft` assumes outside navigations onto these pages are PUSH or POP; an outside REPLACE would not re-sync the draft.
-- CPU-load-sensitive test timeouts: a few long cross-page tests (for example `run-details/workflow.test.tsx`) can exceed the 5 s default under heavy parallel load. Clean when nothing else is running. A higher Vitest `testTimeout` would settle it.
-- Blocked Approve accessibility explanation: it is a disabled button, so the reason is visible text but is not announced on focus.
-- Mobile header height: the sticky header is about 129 px tall at 360 px because Reset wraps under the simulation notice.
-- Remaining maintainability cleanup: the "Organisation · Country" label and lookup maps are rebuilt in seven places; `runDetail.ts` re-exports `describeEvent` only for its old test; result-count paragraphs use `role="status"` on Payroll Runs but `aria-live` elsewhere.
+- An outside navigation followed by the late landing of the page's own earlier write could leave the URL on the older write (draft is correct); not reproduced in a real browser.
 - Manual screen-reader pass pending (none has been run).
-- Cypress is not installed (its binary download needs approval); the critical journeys run as React Testing Library tests in `src/app/journeys.test.tsx`.
+- Cypress is not installed (binary download needs approval); critical journeys run as React Testing Library tests.
 
 ## Next
 
-M9 — Final hardening and release readiness.
+Publication decision for the M9 commit.

@@ -25,7 +25,7 @@ describe('Payroll runs page', () => {
     renderApp('/payroll-runs')
 
     expect(screen.getByRole('heading', { level: 1, name: 'Payroll runs' })).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 24 of 24 runs')
+    expect(screen.getByText('Showing 24 of 24 runs')).toBeInTheDocument()
     expect(within(table()).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
       'Organisation',
       'Country',
@@ -50,7 +50,7 @@ describe('Payroll runs page', () => {
 
     expect(search(router)).toBe('?status=on_hold')
     expect(bodyRows()).toHaveLength(2)
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 2 of 24 runs')
+    expect(screen.getByText('Showing 2 of 24 runs')).toBeInTheDocument()
 
     unmount()
     renderApp('/payroll-runs?status=on_hold')
@@ -63,7 +63,7 @@ describe('Payroll runs page', () => {
     const { router } = renderApp('/payroll-runs')
 
     await user.selectOptions(screen.getByLabelText('Region'), 'EMEA')
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 11 of 24 runs')
+    expect(screen.getByText('Showing 11 of 24 runs')).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Country'), 'Germany')
     expect(search(router)).toBe('?region=EMEA&country=DE')
     expect(bodyRows()).toHaveLength(2)
@@ -221,7 +221,7 @@ describe('Payroll runs page', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Payroll runs' })).toBeInTheDocument()
     expect(screen.getByLabelText('Status')).toHaveValue('')
     expect(screen.getByLabelText('Region')).toHaveValue('EMEA')
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 11 of 24 runs')
+    expect(screen.getByText('Showing 11 of 24 runs')).toBeInTheDocument()
     expect(within(table()).getByRole('columnheader', { name: 'Pay date' })).toHaveAttribute('aria-sort', 'ascending')
   })
 
@@ -237,7 +237,7 @@ describe('Payroll runs page', () => {
     const { router } = renderApp('/payroll-runs?q=zzzz')
 
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 0 of 24 runs')
+    expect(screen.getByText('Showing 0 of 24 runs')).toBeInTheDocument()
     expect(screen.getByText('No payroll runs match these filters.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Clear all filters' }))

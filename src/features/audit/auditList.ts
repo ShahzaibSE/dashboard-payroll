@@ -3,6 +3,7 @@ import { auditKindLabel, describeEvent } from '@/lib/audit'
 import { formatEventTime } from '@/lib/format'
 import type { AuditListParams } from '@/features/audit/params'
 import type { PayrollState } from '@/state/payroll/types'
+import { createPlacement } from '@/lib/placement'
 
 export type AuditInput = {
   /** ISO date treated as "today". */
@@ -41,17 +42,12 @@ export type AuditList = {
  */
 export function buildAuditList(input: AuditInput, params: AuditListParams): AuditList {
   const runById = new Map<string, PayrollRun>(input.state.runs.map((r) => [r.id, r]))
-  const organizationName = new Map(input.organizations.map((o) => [o.id, o.name]))
-  const country = new Map(input.countries.map((c) => [c.code, c]))
+  const placementOf = createPlacement(input.organizations, input.countries)
 
   const labelOf = (runId: string) => {
     const run = runById.get(runId)
     if (!run) throw new Error(`Unknown run: ${runId}`)
-    const organization = organizationName.get(run.organizationId)
-    const c = country.get(run.countryCode)
-    if (!organization) throw new Error(`Unknown organization: ${run.organizationId}`)
-    if (!c) throw new Error(`Unknown country: ${run.countryCode}`)
-    return `${organization} · ${c.name}`
+    return placementOf(run).label
   }
 
   const all = [...input.state.events]

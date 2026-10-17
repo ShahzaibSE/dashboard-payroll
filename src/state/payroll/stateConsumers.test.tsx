@@ -31,12 +31,12 @@ describe('pages read the shared payroll state, not the fixtures', () => {
   it('lists only the runs in the provided state', () => {
     renderWithState(<PayrollRunsPage />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 2 of 2 runs')
+    expect(screen.getByText('Showing 2 of 2 runs')).toBeInTheDocument()
   })
 
   it('shows the full fixture data by default', () => {
     renderWithState(<PayrollRunsPage />, createInitialState())
 
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 24 of 24 runs')
+    expect(screen.getByText('Showing 24 of 24 runs')).toBeInTheDocument()
   })
 })

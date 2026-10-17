@@ -1,6 +1,7 @@
 import type { Country, Organization, PayrollRun, Region, RunStatus } from '@/fixtures'
 import { runStatusOrder } from '@/lib/payroll-status'
 import type { RunListParams, SortKey } from '@/features/payroll-runs/params'
+import { createPlacement } from '@/lib/placement'
 
 export type RunListRow = {
   id: string
@@ -41,14 +42,10 @@ const compare: Record<SortKey, (a: RunListRow, b: RunListRow) => number> = {
  * A run that points at a missing organisation or country is a data bug, so it throws.
  */
 export function buildRunList(input: RunListInput, params: RunListParams): RunList {
-  const organizationName = new Map(input.organizations.map((o) => [o.id, o.name]))
-  const country = new Map(input.countries.map((c) => [c.code, c]))
+  const placementOf = createPlacement(input.organizations, input.countries)
 
   const all: RunListRow[] = input.runs.map((run) => {
-    const organization = organizationName.get(run.organizationId)
-    const c = country.get(run.countryCode)
-    if (!organization) throw new Error(`Unknown organization: ${run.organizationId}`)
-    if (!c) throw new Error(`Unknown country: ${run.countryCode}`)
+    const { organization, country: c } = placementOf(run)
     return {
       id: run.id,
       organization,

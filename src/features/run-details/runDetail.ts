@@ -4,6 +4,7 @@ import { formatEventTime, relativeDays } from '@/lib/format'
 import { severityOrder } from '@/lib/payroll-status'
 import { canApprove, canReject, canResolve, canSubmit, canTake, type Eligibility } from '@/state/payroll/transitions'
 import type { PayrollState } from '@/state/payroll/types'
+import { createPlacement } from '@/lib/placement'
 
 export type RunDetailInput = {
   /** ISO date treated as "today". */
@@ -48,8 +49,6 @@ export type RunDetail = {
   timeline: TimelineRow[]
 }
 
-export { describeEvent }
-
 const severityRank = new Map(severityOrder.map((severity, index) => [severity, index]))
 
 /**
@@ -59,10 +58,7 @@ const severityRank = new Map(severityOrder.map((severity, index) => [severity, i
 export function buildRunDetail(input: RunDetailInput, runId: string): RunDetail | null {
   const run: PayrollRun | undefined = input.state.runs.find((r) => r.id === runId)
   if (!run) return null
-  const organization = input.organizations.find((o) => o.id === run.organizationId)
-  const country = input.countries.find((c) => c.code === run.countryCode)
-  if (!organization) throw new Error(`Unknown organization: ${run.organizationId}`)
-  if (!country) throw new Error(`Unknown country: ${run.countryCode}`)
+  const placement = createPlacement(input.organizations, input.countries)(run)
 
   const exceptions = input.state.exceptions
     .filter((e) => e.runId === runId)
@@ -94,10 +90,10 @@ export function buildRunDetail(input: RunDetailInput, runId: string): RunDetail 
 
   return {
     id: run.id,
-    organization: organization.name,
-    country: country.name,
-    region: country.region,
-    currency: country.currency,
+    organization: placement.organization,
+    country: placement.country.name,
+    region: placement.country.region,
+    currency: placement.country.currency,
     periodLabel: run.periodLabel,
     payDate: run.payDate,
     payDateRelative: relativeDays(input.today, run.payDate),

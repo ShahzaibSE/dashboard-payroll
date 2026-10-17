@@ -3,6 +3,7 @@ import { exceptionStatusOrder, severityOrder } from '@/lib/payroll-status'
 import type { ExceptionListParams, SortKey } from '@/features/exceptions/params'
 import { canResolve, canTake } from '@/state/payroll/transitions'
 import type { PayrollState } from '@/state/payroll/types'
+import { createPlacement } from '@/lib/placement'
 
 export type ExceptionRow = {
   id: string
@@ -39,16 +40,12 @@ const compare: Record<SortKey, (a: ExceptionRow, b: ExceptionRow) => number> = {
  */
 export function buildExceptionList(input: ExceptionListInput, params: ExceptionListParams): ExceptionList {
   const runById = new Map<string, PayrollRun>(input.state.runs.map((r) => [r.id, r]))
-  const organizationName = new Map(input.organizations.map((o) => [o.id, o.name]))
-  const country = new Map(input.countries.map((c) => [c.code, c]))
+  const placementOf = createPlacement(input.organizations, input.countries)
 
   const all = input.state.exceptions.map((e: PayrollException): ExceptionRow => {
     const run = runById.get(e.runId)
     if (!run) throw new Error(`Unknown run: ${e.runId}`)
-    const organization = organizationName.get(run.organizationId)
-    const c = country.get(run.countryCode)
-    if (!organization) throw new Error(`Unknown organization: ${run.organizationId}`)
-    if (!c) throw new Error(`Unknown country: ${run.countryCode}`)
+    const placement = placementOf(run)
     return {
       id: e.id,
       title: e.title,
@@ -57,8 +54,8 @@ export function buildExceptionList(input: ExceptionListInput, params: ExceptionL
       raisedOn: e.raisedOn,
       ...(e.assignee ? { assignee: e.assignee } : {}),
       runId: run.id,
-      runLabel: `${organization} · ${c.name}`,
-      region: c.region,
+      runLabel: placement.label,
+      region: placement.country.region,
       canTake: canTake(input.state, e.id).allowed,
       canResolve: canResolve(input.state, e.id).allowed,
     }

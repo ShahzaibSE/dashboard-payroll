@@ -1,7 +1,10 @@
 import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderApp } from '@/test/renderApp'
+
+// Measured: the slowest test here takes about 1 s on an idle machine and over 3x that under heavy CPU load, so the 5 s default leaves too little margin.
+vi.setConfig({ testTimeout: 15_000 })
 
 const card = (name: string) => screen.getByRole('heading', { level: 2, name }).closest('section') as HTMLElement
 const nav = (name: string) => within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name })
@@ -49,7 +52,7 @@ describe('one workflow, every view', () => {
   it('updates the unresolved exception counts when an exception is resolved', async () => {
     const user = userEvent.setup()
     renderApp('/payroll-runs/run-2026-10-010')
-    expect(screen.getByRole('button', { name: 'Approve run' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Approve run' })).toHaveAttribute('aria-disabled', 'true')
 
     await user.click(screen.getByRole('button', { name: /^Resolve: Net pay differs/ }))
     await user.click(nav('Overview'))

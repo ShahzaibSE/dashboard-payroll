@@ -139,7 +139,7 @@ describe('Exceptions page', () => {
   it('unblocks approval on the run page when its critical exception is resolved here', async () => {
     const user = userEvent.setup()
     const { router } = renderApp('/payroll-runs/run-2026-10-010')
-    expect(screen.getByRole('button', { name: 'Approve run' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Approve run' })).toHaveAttribute('aria-disabled', 'true')
 
     await user.click(nav('Exceptions'))
     await user.click(screen.getByRole('button', { name: /^Resolve: Net pay differs/ }))

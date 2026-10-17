@@ -68,22 +68,24 @@ export default function AppShell() {
           </Button>
           <span className="font-semibold lg:hidden">PayrollOps</span>
           <p className="hidden text-sm text-muted-foreground lg:block">APAC and EMEA payroll operations</p>
-          <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 sm:ml-auto sm:w-auto">
+          {/* On phones the notice drops to its own row so that Reset stays beside the title instead of wrapping under the notice. */}
+          <div className="order-last w-full sm:order-none sm:ml-auto sm:w-auto">
             <SimulationNotice />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                dispatch({ type: 'demo/reset' })
-                setResetCount((count) => count + 1)
-              }}
-            >
-              Reset demo data
-            </Button>
-            <span aria-live="polite" className="sr-only">
-              {resetCount === 0 ? '' : `Demo data reset to the original synthetic data (reset ${resetCount}).`}
-            </span>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto sm:ml-0"
+            onClick={() => {
+              dispatch({ type: 'demo/reset' })
+              setResetCount((count) => count + 1)
+            }}
+          >
+            Reset demo data
+          </Button>
+          <span aria-live="polite" className="sr-only">
+            {resetCount === 0 ? '' : `Demo data reset to the original synthetic data (reset ${resetCount}).`}
+          </span>
         </div>
       </header>
 

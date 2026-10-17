@@ -1,8 +1,11 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { axe } from 'vitest-axe'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderApp } from '@/test/renderApp'
+
+// Measured: the slowest test here takes about 1 s on an idle machine and over 3x that under heavy CPU load, so the 5 s default leaves too little margin.
+vi.setConfig({ testTimeout: 15_000 })
 
 const card = (name: string) => screen.getByRole('heading', { level: 2, name }).closest('section') as HTMLElement
 const outcome = () => screen.getByRole('status')
@@ -73,16 +76,25 @@ describe('approving a run', () => {
     renderApp('/payroll-runs/run-2026-10-010')
     const approve = screen.getByRole('button', { name: 'Approve run' })
 
-    expect(approve).toBeDisabled()
+    expect(approve).toHaveAttribute('aria-disabled', 'true')
     expect(approve).toHaveAccessibleDescription('Cannot approve yet: Resolve 1 critical exception first.')
     expect(screen.getByText('Cannot approve yet: Resolve 1 critical exception first.')).toBeVisible()
+
+    // It stays in the tab order, so a keyboard or screen-reader user reaches it and hears the reason; activating it does nothing.
+    await user.tab()
+    while (document.activeElement !== approve && document.activeElement !== document.body) await user.tab()
+    expect(approve).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await user.click(approve)
+    expect(screen.queryByRole('group', { name: 'Approve this run?' })).not.toBeInTheDocument()
+    expect(approve).toHaveFocus()
 
     // Taking ownership is not resolving: the run stays blocked.
     await user.click(screen.getByRole('button', { name: `Take ownership: ${critical}` }))
     expect(outcome()).toHaveTextContent('You now own this exception (simulated).')
     expect(outcome()).toHaveFocus()
     expect(screen.queryByRole('button', { name: `Take ownership: ${critical}` })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Approve run' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Approve run' })).toHaveAttribute('aria-disabled', 'true')
     const row = within(card('Exceptions')).getByRole('row', { name: new RegExp(critical) })
     expect(within(row).getByText('In progress')).toBeInTheDocument()
     expect(within(row).getByText('Sofia Lindqvist')).toBeInTheDocument()

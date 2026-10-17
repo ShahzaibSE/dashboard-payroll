@@ -2,6 +2,7 @@ import type { AuditKind, Country, Organization, PayrollRun } from '@/fixtures'
 import { formatEventTime, relativeDays } from '@/lib/format'
 import { unresolvedCriticalCount } from '@/state/payroll/transitions'
 import type { PayrollState } from '@/state/payroll/types'
+import { createPlacement } from '@/lib/placement'
 
 export type ApprovalsInput = {
   /** ISO date treated as "today". */
@@ -45,16 +46,8 @@ const DECISION_KINDS: Partial<Record<AuditKind, DecisionRow['outcome']>> = { 'ru
  */
 export function buildApprovals(input: ApprovalsInput): Approvals {
   const runById = new Map<string, PayrollRun>(input.state.runs.map((r) => [r.id, r]))
-  const organizationName = new Map(input.organizations.map((o) => [o.id, o.name]))
-  const country = new Map(input.countries.map((c) => [c.code, c]))
-
-  const labelOf = (run: PayrollRun) => {
-    const organization = organizationName.get(run.organizationId)
-    const c = country.get(run.countryCode)
-    if (!organization) throw new Error(`Unknown organization: ${run.organizationId}`)
-    if (!c) throw new Error(`Unknown country: ${run.countryCode}`)
-    return `${organization} · ${c.name}`
-  }
+  const placementOf = createPlacement(input.organizations, input.countries)
+  const labelOf = (run: PayrollRun) => placementOf(run).label
 
   const queue = input.state.runs
     .filter((run) => run.status === 'pending_approval')

@@ -99,7 +99,13 @@ export default function RunActions({ run, contextKey, onPerform }: RunActionsPro
           </Button>
         ) : reject.allowed ? (
           <div className="flex flex-wrap items-start gap-2">
-            <Button ref={approveButton} disabled={!approve.allowed} aria-describedby={approve.allowed ? undefined : 'approve-blocked'} onClick={() => open('approve')}>
+            <Button
+              ref={approveButton}
+              aria-disabled={approve.allowed ? undefined : true}
+              aria-describedby={approve.allowed ? undefined : 'approve-blocked'}
+              className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-primary"
+              onClick={() => approve.allowed && open('approve')}
+            >
               Approve run
             </Button>
             <Button ref={rejectButton} variant="outline" onClick={() => open('reject')}>

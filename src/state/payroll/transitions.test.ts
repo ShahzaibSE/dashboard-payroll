@@ -15,8 +15,35 @@ import {
 } from '@/state/payroll/transitions'
 import type { PayrollAction, PayrollState } from '@/state/payroll/types'
 
-const run = (n: number) => `run-2026-10-${String(n).padStart(3, '0')}`
-const exc = (n: number) => `exc-${String(n).padStart(3, '0')}`
+/**
+ * Scenario records are found by what they are (a pending run blocked by a critical exception, an open exception, and so on)
+ * rather than by fixture id, so re-seeding the fixtures cannot silently turn these tests into tests of something else.
+ */
+function required<T>(found: T | undefined, what: string): T {
+  if (found === undefined) throw new Error(`The fixtures contain no ${what}`)
+  return found
+}
+const unresolvedCritical = (runId: string) => exceptions.filter((e) => e.runId === runId && e.severity === 'critical' && e.status !== 'resolved')
+const pendingRuns = payrollRuns.filter((r) => r.status === 'pending_approval')
+
+const BLOCKED_RUN = required(
+  pendingRuns.find((r) => unresolvedCritical(r.id).length === 1 && exceptions.some((e) => e.runId === r.id && e.status === 'in_progress')),
+  'pending run with one unresolved critical exception and another exception in progress',
+)
+const CRITICAL_EXCEPTION = unresolvedCritical(BLOCKED_RUN.id)[0].id
+const IN_PROGRESS_EXCEPTION = required(exceptions.find((e) => e.runId === BLOCKED_RUN.id && e.status === 'in_progress'), 'in-progress exception on the blocked run').id
+const SECOND_BLOCKED_RUN = required(pendingRuns.find((r) => r.id !== BLOCKED_RUN.id && unresolvedCritical(r.id).length > 0), 'second blocked pending run')
+const APPROVABLE_RUN = required(pendingRuns.find((r) => unresolvedCritical(r.id).length === 0), 'pending run with no unresolved critical exception')
+const REJECTABLE_RUN = required(
+  pendingRuns.find((r) => r.id !== BLOCKED_RUN.id && r.id !== APPROVABLE_RUN.id && exceptions.some((e) => e.runId === r.id && e.status === 'open')),
+  'other pending run with an open exception',
+)
+const OPEN_EXCEPTION = required(exceptions.find((e) => e.runId === REJECTABLE_RUN.id && e.status === 'open'), 'open exception on the rejectable run').id
+const OTHER_OPEN_EXCEPTION = required(exceptions.find((e) => e.status === 'open' && e.severity !== 'critical' && e.id !== OPEN_EXCEPTION), 'second open non-critical exception').id
+const RESOLVED_EXCEPTION = required(exceptions.find((e) => e.status === 'resolved'), 'resolved exception').id
+const IN_REVIEW_RUN = required(payrollRuns.find((r) => r.status === 'in_review'), 'run in review')
+const PAID_RUN = required(payrollRuns.find((r) => r.status === 'paid'), 'paid run')
+const run = { blocked: BLOCKED_RUN.id, second: SECOND_BLOCKED_RUN.id, approvable: APPROVABLE_RUN.id, rejectable: REJECTABLE_RUN.id, inReview: IN_REVIEW_RUN.id, paid: PAID_RUN.id }
 const GOOD_REASON = 'Net pay variance is not explained.'
 
 function deepFreeze<T>(value: T): T {
@@ -48,17 +75,17 @@ describe('run guards across every fixture run', () => {
   })
 
   it('has both a blocked and an approvable pending run in the fixtures', () => {
-    expect(canApprove(state, run(14)).allowed).toBe(true)
-    expect(canApprove(state, run(10))).toEqual({ allowed: false, code: 'unresolved_critical', message: 'Resolve 1 critical exception first.' })
-    expect(canApprove(state, run(13))).toMatchObject({ allowed: false, code: 'unresolved_critical' })
+    expect(canApprove(state, run.approvable).allowed).toBe(true)
+    expect(canApprove(state, run.blocked)).toEqual({ allowed: false, code: 'unresolved_critical', message: 'Resolve 1 critical exception first.' })
+    expect(canApprove(state, run.second)).toMatchObject({ allowed: false, code: 'unresolved_critical' })
   })
 
   it('keeps blocking approval while the critical exception is only in progress', () => {
-    const owned = payrollReducer(createInitialState(), { type: 'exception/take', exceptionId: exc(1) })
+    const owned = payrollReducer(createInitialState(), { type: 'exception/take', exceptionId: CRITICAL_EXCEPTION })
 
-    expect(exceptionOf(owned, exc(1))?.status).toBe('in_progress')
-    expect(canApprove(owned, run(10))).toEqual({ allowed: false, code: 'unresolved_critical', message: 'Resolve 1 critical exception first.' })
-    expect(payrollReducer(owned, { type: 'run/approve', runId: run(10) })).toBe(owned)
+    expect(exceptionOf(owned, CRITICAL_EXCEPTION)?.status).toBe('in_progress')
+    expect(canApprove(owned, run.blocked)).toEqual({ allowed: false, code: 'unresolved_critical', message: 'Resolve 1 critical exception first.' })
+    expect(payrollReducer(owned, { type: 'run/approve', runId: run.blocked })).toBe(owned)
   })
 
   it('refuses unknown runs and exceptions', () => {
@@ -72,44 +99,44 @@ describe('run guards across every fixture run', () => {
   it('pluralises the blocker message', () => {
     const two: PayrollState = {
       ...state,
-      exceptions: [...state.exceptions, { id: 'exc-900', runId: run(10), severity: 'critical', status: 'open', title: 'Another', raisedOn: '2026-10-12' }],
+      exceptions: [...state.exceptions, { id: 'exc-900', runId: run.blocked, severity: 'critical', status: 'open', title: 'Another', raisedOn: '2026-10-12' }],
     }
 
-    expect(canApprove(two, run(10))).toMatchObject({ message: 'Resolve 2 critical exceptions first.' })
+    expect(canApprove(two, run.blocked)).toMatchObject({ message: 'Resolve 2 critical exceptions first.' })
   })
 })
 
 describe('approve', () => {
   it('moves the run, stamps it, and appends exactly one audit event, changing nothing else', () => {
     const before = frozenState()
-    const result = applyAction(before, { type: 'run/approve', runId: run(14) })
+    const result = applyAction(before, { type: 'run/approve', runId: run.approvable })
 
     if (!result.ok) throw new Error('expected success')
     const after = result.state
-    expect(statusOf(after, run(14))).toBe('approved')
-    expect(after.runs.find((r) => r.id === run(14))).toMatchObject({ updatedOn: '2026-10-12', employeeCount: 52, grossUsd: 328_848 })
+    expect(statusOf(after, run.approvable)).toBe('approved')
+    expect(after.runs.find((r) => r.id === run.approvable)).toMatchObject({ updatedOn: '2026-10-12', employeeCount: APPROVABLE_RUN.employeeCount, grossUsd: APPROVABLE_RUN.grossUsd })
     expect(after.events).toHaveLength(before.events.length + 1)
     expect(after.events[0]).toEqual({
       id: 'evt-009',
       occurredAt: '2026-10-12T09:42',
       actor: SIMULATED_ACTOR.name,
       action: 'approved the run',
-      runId: run(14),
+      runId: run.approvable,
       kind: 'run.approved',
     })
     expect(after.events.slice(1)).toEqual(before.events)
     // Structural sharing: every other record keeps its identity.
     expect(after.exceptions).toBe(before.exceptions)
     after.runs.forEach((r, i) => {
-      if (r.id !== run(14)) expect(r).toBe(before.runs[i])
+      if (r.id !== run.approvable) expect(r).toBe(before.runs[i])
     })
   })
 
   it('keeps the other runs and exceptions by reference for every run action', () => {
     const before = frozenState()
     const actions: PayrollAction[] = [
-      { type: 'run/submit', runId: run(16) },
-      { type: 'run/reject', runId: run(11), reason: GOOD_REASON },
+      { type: 'run/submit', runId: run.inReview },
+      { type: 'run/reject', runId: run.rejectable, reason: GOOD_REASON },
     ]
 
     for (const action of actions) {
@@ -124,33 +151,33 @@ describe('approve', () => {
 
   it('is refused while a critical exception is open, and then allowed once it is resolved', () => {
     const state = createInitialState()
-    const refused = applyAction(state, { type: 'run/approve', runId: run(10) })
+    const refused = applyAction(state, { type: 'run/approve', runId: run.blocked })
 
     expect(refused).toEqual({ ok: false, code: 'unresolved_critical', message: 'Resolve 1 critical exception first.' })
-    expect(payrollReducer(state, { type: 'run/approve', runId: run(10) })).toBe(state)
+    expect(payrollReducer(state, { type: 'run/approve', runId: run.blocked })).toBe(state)
 
-    const resolved = payrollReducer(state, { type: 'exception/resolve', exceptionId: exc(1) })
-    const approved = payrollReducer(resolved, { type: 'run/approve', runId: run(10) })
-    expect(statusOf(approved, run(10))).toBe('approved')
+    const resolved = payrollReducer(state, { type: 'exception/resolve', exceptionId: CRITICAL_EXCEPTION })
+    const approved = payrollReducer(resolved, { type: 'run/approve', runId: run.blocked })
+    expect(statusOf(approved, run.blocked)).toBe('approved')
     // The high-severity exception that is still in progress does not block approval.
-    expect(exceptionOf(approved, exc(3))?.status).toBe('in_progress')
+    expect(exceptionOf(approved, IN_PROGRESS_EXCEPTION)?.status).toBe('in_progress')
   })
 
   it('cannot be repeated', () => {
-    const once = payrollReducer(createInitialState(), { type: 'run/approve', runId: run(14) })
+    const once = payrollReducer(createInitialState(), { type: 'run/approve', runId: run.approvable })
 
-    expect(applyAction(once, { type: 'run/approve', runId: run(14) })).toMatchObject({ ok: false, code: 'invalid_status' })
-    expect(payrollReducer(once, { type: 'run/approve', runId: run(14) })).toBe(once)
+    expect(applyAction(once, { type: 'run/approve', runId: run.approvable })).toMatchObject({ ok: false, code: 'invalid_status' })
+    expect(payrollReducer(once, { type: 'run/approve', runId: run.approvable })).toBe(once)
   })
 })
 
 describe('reject', () => {
   it('returns the run to review and records the trimmed reason', () => {
-    const result = applyAction(frozenState(), { type: 'run/reject', runId: run(11), reason: `   ${GOOD_REASON}   ` })
+    const result = applyAction(frozenState(), { type: 'run/reject', runId: run.rejectable, reason: `   ${GOOD_REASON}   ` })
 
     if (!result.ok) throw new Error('expected success')
-    expect(statusOf(result.state, run(11))).toBe('in_review')
-    expect(result.state.events[0]).toMatchObject({ kind: 'run.rejected', runId: run(11), reason: GOOD_REASON, actor: SIMULATED_ACTOR.name })
+    expect(statusOf(result.state, run.rejectable)).toBe('in_review')
+    expect(result.state.events[0]).toMatchObject({ kind: 'run.rejected', runId: run.rejectable, reason: GOOD_REASON, actor: SIMULATED_ACTOR.name })
     expect(result.state.events).toHaveLength(9)
   })
 
@@ -162,7 +189,7 @@ describe('reject', () => {
     ['301 characters', 'x'.repeat(301)],
   ])('refuses a reason that is %s without changing state', (_label, reason) => {
     const state = createInitialState()
-    const action: PayrollAction = { type: 'run/reject', runId: run(11), reason }
+    const action: PayrollAction = { type: 'run/reject', runId: run.rejectable, reason }
 
     expect(applyAction(state, action)).toMatchObject({ ok: false, code: 'invalid_reason' })
     expect(payrollReducer(state, action)).toBe(state)
@@ -171,37 +198,37 @@ describe('reject', () => {
   it('accepts the boundary lengths of 10 and 300 characters', () => {
     const state = createInitialState()
 
-    expect(applyAction(state, { type: 'run/reject', runId: run(11), reason: '1234567890' }).ok).toBe(true)
-    expect(applyAction(state, { type: 'run/reject', runId: run(11), reason: 'x'.repeat(300) }).ok).toBe(true)
+    expect(applyAction(state, { type: 'run/reject', runId: run.rejectable, reason: '1234567890' }).ok).toBe(true)
+    expect(applyAction(state, { type: 'run/reject', runId: run.rejectable, reason: 'x'.repeat(300) }).ok).toBe(true)
   })
 
   it('treats HTML in the reason as plain text', () => {
     const reason = '<img src=x onerror=alert(1)> please fix'
-    const result = applyAction(createInitialState(), { type: 'run/reject', runId: run(11), reason })
+    const result = applyAction(createInitialState(), { type: 'run/reject', runId: run.rejectable, reason })
 
     if (!result.ok) throw new Error('expected success')
     expect(result.state.events[0].reason).toBe(reason)
   })
 
   it('checks the status before the reason', () => {
-    expect(applyAction(createInitialState(), { type: 'run/reject', runId: run(16), reason: '' })).toMatchObject({ code: 'invalid_status' })
+    expect(applyAction(createInitialState(), { type: 'run/reject', runId: run.inReview, reason: '' })).toMatchObject({ code: 'invalid_status' })
   })
 })
 
 describe('submit', () => {
   it('sends a run in review to approval', () => {
-    const result = applyAction(frozenState(), { type: 'run/submit', runId: run(16) })
+    const result = applyAction(frozenState(), { type: 'run/submit', runId: run.inReview })
 
     if (!result.ok) throw new Error('expected success')
-    expect(statusOf(result.state, run(16))).toBe('pending_approval')
-    expect(result.state.events[0]).toMatchObject({ kind: 'run.submitted', action: 'submitted the run for approval', runId: run(16) })
+    expect(statusOf(result.state, run.inReview)).toBe('pending_approval')
+    expect(result.state.events[0]).toMatchObject({ kind: 'run.submitted', action: 'submitted the run for approval', runId: run.inReview })
   })
 
   it('makes a rejected run submittable again', () => {
-    const rejected = payrollReducer(createInitialState(), { type: 'run/reject', runId: run(11), reason: GOOD_REASON })
-    const resubmitted = payrollReducer(rejected, { type: 'run/submit', runId: run(11) })
+    const rejected = payrollReducer(createInitialState(), { type: 'run/reject', runId: run.rejectable, reason: GOOD_REASON })
+    const resubmitted = payrollReducer(rejected, { type: 'run/submit', runId: run.rejectable })
 
-    expect(statusOf(resubmitted, run(11))).toBe('pending_approval')
+    expect(statusOf(resubmitted, run.rejectable)).toBe('pending_approval')
     expect(resubmitted.events.slice(0, 2).map((e) => e.kind)).toEqual(['run.submitted', 'run.rejected'])
   })
 })
@@ -209,51 +236,51 @@ describe('submit', () => {
 describe('exceptions', () => {
   it('take: an open exception becomes in progress and is assigned to the simulated actor', () => {
     const before = frozenState()
-    const result = applyAction(before, { type: 'exception/take', exceptionId: exc(4) })
+    const result = applyAction(before, { type: 'exception/take', exceptionId: OPEN_EXCEPTION })
 
     if (!result.ok) throw new Error('expected success')
-    expect(exceptionOf(result.state, exc(4))).toMatchObject({ status: 'in_progress', assignee: SIMULATED_ACTOR.name })
-    expect(result.state.events[0]).toMatchObject({ kind: 'exception.taken', runId: run(11) })
+    expect(exceptionOf(result.state, OPEN_EXCEPTION)).toMatchObject({ status: 'in_progress', assignee: SIMULATED_ACTOR.name })
+    expect(result.state.events[0]).toMatchObject({ kind: 'exception.taken', runId: run.rejectable })
     expect(result.state.runs).toBe(before.runs)
     result.state.exceptions.forEach((e, i) => {
-      if (e.id !== exc(4)) expect(e).toBe(before.exceptions[i])
+      if (e.id !== OPEN_EXCEPTION) expect(e).toBe(before.exceptions[i])
     })
   })
 
   it('take: refuses exceptions that are already owned or resolved', () => {
     const state = createInitialState()
 
-    expect(canTake(state, exc(3))).toMatchObject({ allowed: false, code: 'invalid_status' })
-    expect(canTake(state, exc(13))).toMatchObject({ allowed: false, code: 'invalid_status' })
+    expect(canTake(state, IN_PROGRESS_EXCEPTION)).toMatchObject({ allowed: false, code: 'invalid_status' })
+    expect(canTake(state, RESOLVED_EXCEPTION)).toMatchObject({ allowed: false, code: 'invalid_status' })
   })
 
   it('resolve: works from open and from in progress, and clears the assignee', () => {
     const state = frozenState()
-    const fromOpen = applyAction(state, { type: 'exception/resolve', exceptionId: exc(2) })
-    const fromProgress = applyAction(state, { type: 'exception/resolve', exceptionId: exc(3) })
+    const fromOpen = applyAction(state, { type: 'exception/resolve', exceptionId: OTHER_OPEN_EXCEPTION })
+    const fromProgress = applyAction(state, { type: 'exception/resolve', exceptionId: IN_PROGRESS_EXCEPTION })
 
     if (!fromOpen.ok || !fromProgress.ok) throw new Error('expected success')
-    expect(exceptionOf(fromOpen.state, exc(2))?.status).toBe('resolved')
-    expect(exceptionOf(fromProgress.state, exc(3))?.status).toBe('resolved')
-    expect('assignee' in (exceptionOf(fromProgress.state, exc(3)) ?? {})).toBe(false)
-    expect(fromProgress.state.events[0]).toMatchObject({ kind: 'exception.resolved', runId: run(10) })
+    expect(exceptionOf(fromOpen.state, OTHER_OPEN_EXCEPTION)?.status).toBe('resolved')
+    expect(exceptionOf(fromProgress.state, IN_PROGRESS_EXCEPTION)?.status).toBe('resolved')
+    expect('assignee' in (exceptionOf(fromProgress.state, IN_PROGRESS_EXCEPTION) ?? {})).toBe(false)
+    expect(fromProgress.state.events[0]).toMatchObject({ kind: 'exception.resolved', runId: run.blocked })
     expect(fromProgress.state.runs).toBe(state.runs)
     fromProgress.state.exceptions.forEach((e, i) => {
-      if (e.id !== exc(3)) expect(e).toBe(state.exceptions[i])
+      if (e.id !== IN_PROGRESS_EXCEPTION) expect(e).toBe(state.exceptions[i])
     })
   })
 
   it('resolve: a resolved exception never reopens and cannot be resolved twice', () => {
     const state = createInitialState()
 
-    expect(canResolve(state, exc(13))).toMatchObject({ allowed: false, code: 'invalid_status' })
-    expect(canTake(state, exc(13)).allowed).toBe(false)
+    expect(canResolve(state, RESOLVED_EXCEPTION)).toMatchObject({ allowed: false, code: 'invalid_status' })
+    expect(canTake(state, RESOLVED_EXCEPTION).allowed).toBe(false)
   })
 
   it('refuses exception actions on a paid run', () => {
     const state: PayrollState = {
       ...createInitialState(),
-      exceptions: [...exceptions, { id: 'exc-901', runId: run(1), severity: 'low', status: 'open', title: 'Late note', raisedOn: '2026-10-12' }],
+      exceptions: [...exceptions, { id: 'exc-901', runId: run.paid, severity: 'low', status: 'open', title: 'Late note', raisedOn: '2026-10-12' }],
     }
 
     expect(canTake(state, 'exc-901')).toMatchObject({ allowed: false, code: 'run_paid' })
@@ -264,7 +291,7 @@ describe('exceptions', () => {
   it('reports a paid run before the exception status, so a resolved exception on a paid run says why it is closed', () => {
     const state: PayrollState = {
       ...createInitialState(),
-      exceptions: [{ id: 'exc-903', runId: run(1), severity: 'low', status: 'resolved', title: 'Old note', raisedOn: '2026-10-08' }],
+      exceptions: [{ id: 'exc-903', runId: run.paid, severity: 'low', status: 'resolved', title: 'Old note', raisedOn: '2026-10-08' }],
     }
 
     expect(canResolve(state, 'exc-903')).toMatchObject({ allowed: false, code: 'run_paid' })
@@ -283,15 +310,15 @@ describe('exceptions', () => {
 describe('invalid actions never change anything', () => {
   const state = createInitialState()
   const refused: PayrollAction[] = [
-    { type: 'run/submit', runId: run(14) },
+    { type: 'run/submit', runId: run.approvable },
     { type: 'run/submit', runId: 'nope' },
-    { type: 'run/approve', runId: run(10) },
-    { type: 'run/approve', runId: run(16) },
-    { type: 'run/approve', runId: run(1) },
-    { type: 'run/reject', runId: run(16), reason: GOOD_REASON },
-    { type: 'run/reject', runId: run(14), reason: 'no' },
-    { type: 'exception/take', exceptionId: exc(3) },
-    { type: 'exception/resolve', exceptionId: exc(13) },
+    { type: 'run/approve', runId: run.blocked },
+    { type: 'run/approve', runId: run.inReview },
+    { type: 'run/approve', runId: run.paid },
+    { type: 'run/reject', runId: run.inReview, reason: GOOD_REASON },
+    { type: 'run/reject', runId: run.approvable, reason: 'no' },
+    { type: 'exception/take', exceptionId: IN_PROGRESS_EXCEPTION },
+    { type: 'exception/resolve', exceptionId: RESOLVED_EXCEPTION },
     { type: 'exception/resolve', exceptionId: 'nope' },
     { type: 'unknown' } as never,
   ]
@@ -305,7 +332,7 @@ describe('invalid actions never change anything', () => {
 })
 
 describe('audit identifiers and timestamps', () => {
-  const event = (id: string, occurredAt: string) => ({ id, occurredAt, actor: 'x', action: 'y', runId: run(1), kind: 'run.paid' as const })
+  const event = (id: string, occurredAt: string) => ({ id, occurredAt, actor: 'x', action: 'y', runId: run.paid, kind: 'run.paid' as const })
 
   it('derives the next id from the highest number, not from the count', () => {
     expect(nextEventId([])).toBe('evt-001')
@@ -332,14 +359,14 @@ describe('audit identifiers and timestamps', () => {
 
   it('stays unique and strictly increasing across a sequence of actions', () => {
     const steps: PayrollAction[] = [
-      { type: 'run/submit', runId: run(16) },
-      { type: 'run/approve', runId: run(14) },
-      { type: 'exception/take', exceptionId: exc(4) },
-      { type: 'exception/resolve', exceptionId: exc(4) },
-      { type: 'run/reject', runId: run(11), reason: GOOD_REASON },
-      { type: 'run/approve', runId: run(10) }, // refused: critical open, so no event
-      { type: 'exception/resolve', exceptionId: exc(1) },
-      { type: 'run/approve', runId: run(10) },
+      { type: 'run/submit', runId: run.inReview },
+      { type: 'run/approve', runId: run.approvable },
+      { type: 'exception/take', exceptionId: OPEN_EXCEPTION },
+      { type: 'exception/resolve', exceptionId: OPEN_EXCEPTION },
+      { type: 'run/reject', runId: run.rejectable, reason: GOOD_REASON },
+      { type: 'run/approve', runId: run.blocked }, // refused: critical open, so no event
+      { type: 'exception/resolve', exceptionId: CRITICAL_EXCEPTION },
+      { type: 'run/approve', runId: run.blocked },
     ]
     const final = steps.reduce(payrollReducer, frozenState())
 
@@ -370,9 +397,9 @@ describe('audit identifiers and timestamps', () => {
 describe('reset', () => {
   it('restores exactly the original fixtures after a sequence of changes', () => {
     const changed = [
-      { type: 'run/approve', runId: run(14) },
-      { type: 'run/reject', runId: run(11), reason: GOOD_REASON },
-      { type: 'exception/resolve', exceptionId: exc(2) },
+      { type: 'run/approve', runId: run.approvable },
+      { type: 'run/reject', runId: run.rejectable, reason: GOOD_REASON },
+      { type: 'exception/resolve', exceptionId: OTHER_OPEN_EXCEPTION },
     ].reduce((s, a) => payrollReducer(s, a as PayrollAction), createInitialState())
     expect(changed.events).toHaveLength(11)
 
@@ -385,8 +412,8 @@ describe('reset', () => {
   it('never mutates the shared fixture arrays', () => {
     const before = JSON.stringify([payrollRuns, exceptions, activityEvents])
     ;[
-      { type: 'run/approve', runId: run(14) },
-      { type: 'exception/take', exceptionId: exc(4) },
+      { type: 'run/approve', runId: run.approvable },
+      { type: 'exception/take', exceptionId: OPEN_EXCEPTION },
     ].reduce((s, a) => payrollReducer(s, a as PayrollAction), createInitialState())
 
     expect(JSON.stringify([payrollRuns, exceptions, activityEvents])).toBe(before)

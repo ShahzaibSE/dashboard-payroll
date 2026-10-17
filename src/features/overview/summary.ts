@@ -10,6 +10,7 @@ import type {
 } from '@/fixtures'
 import { daysBetween, formatEventTime, formatShortDate, relativeDays } from '@/lib/format'
 import { runStatusOrder } from '@/lib/payroll-status'
+import { createPlacement } from '@/lib/placement'
 
 export type OverviewInput = {
   /** ISO date treated as "today". */
@@ -84,13 +85,11 @@ function mustFind<T>(lookup: Map<string, T>, key: string, kind: string): T {
  */
 export function buildOverview(input: OverviewInput): Overview {
   const { today, runs, exceptions } = input
-  const organizationName = new Map(input.organizations.map((o) => [o.id, o.name]))
+  const placementOf = createPlacement(input.organizations, input.countries)
   const country = new Map(input.countries.map((c) => [c.code, c]))
   const runById = new Map(runs.map((r) => [r.id, r]))
 
-  const countryName = (run: PayrollRun) => mustFind(country, run.countryCode, 'country').name
-  const organizationOf = (run: PayrollRun) => mustFind(organizationName, run.organizationId, 'organization')
-  const runLabel = (run: PayrollRun) => `${organizationOf(run)} · ${countryName(run)}`
+  const runLabel = (run: PayrollRun) => placementOf(run).label
   const payDateDetail = (run: PayrollRun) => `Pay date ${formatShortDate(run.payDate)} (${relativeDays(today, run.payDate)})`
 
   const pending = runs.filter((r) => r.status === 'pending_approval').sort(byDateThenId((r) => r.payDate))
@@ -155,8 +154,8 @@ export function buildOverview(input: OverviewInput): Overview {
       .slice(0, RECENT_RUN_LIMIT)
       .map((r) => ({
         id: r.id,
-        organization: organizationOf(r),
-        country: countryName(r),
+        organization: placementOf(r).organization,
+        country: placementOf(r).country.name,
         payDate: r.payDate,
         employeeCount: r.employeeCount,
         grossUsd: r.grossUsd,

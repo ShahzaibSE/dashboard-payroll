@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { countries, organizations } from '@/fixtures'
-import { buildRunDetail, describeEvent } from '@/features/run-details/runDetail'
+import { buildRunDetail } from '@/features/run-details/runDetail'
+import { describeEvent } from '@/lib/audit'
 import { createInitialState, payrollReducer } from '@/state/payroll/reducer'
 import type { PayrollState } from '@/state/payroll/types'
 

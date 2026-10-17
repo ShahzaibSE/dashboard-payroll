@@ -1,7 +1,10 @@
 import { screen } from '@testing-library/react'
 import { axe } from 'vitest-axe'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderApp } from '@/test/renderApp'
+
+// Measured: the slowest test here takes about 1 s on an idle machine and over 3x that under heavy CPU load, so the 5 s default leaves too little margin.
+vi.setConfig({ testTimeout: 15_000 })
 
 // Every route, in populated, filtered, empty, and not-found states.
 const pages: [string, string][] = [

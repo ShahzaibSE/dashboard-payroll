@@ -1,5 +1,6 @@
 import type { Country, Employee, Organization } from '@/fixtures'
 import { PAGE_SIZE, type EmployeeListParams, type SortKey } from '@/features/employees/params'
+import { createPlacement } from '@/lib/placement'
 
 export type EmployeeRow = {
   id: string
@@ -43,15 +44,13 @@ const compare: Record<SortKey, (a: EmployeeRow, b: EmployeeRow) => number> = {
  * A person who points at a missing organisation or country is a data bug, so it throws.
  */
 export function buildEmployeeList(input: EmployeeListInput, params: EmployeeListParams): EmployeeList {
+  const placementOf = createPlacement(input.organizations, input.countries)
   const organizationName = new Map(input.organizations.map((o) => [o.id, o.name]))
   const countryName = new Map(input.countries.map((c) => [c.code, c.name]))
 
   const all = input.employees.map((e): EmployeeRow => {
-    const organization = organizationName.get(e.organizationId)
-    const country = countryName.get(e.countryCode)
-    if (!organization) throw new Error(`Unknown organization: ${e.organizationId}`)
-    if (!country) throw new Error(`Unknown country: ${e.countryCode}`)
-    return { id: e.id, displayName: e.displayName, jobTitle: e.jobTitle, organization, organizationId: e.organizationId, country, countryCode: e.countryCode }
+    const placement = placementOf(e)
+    return { id: e.id, displayName: e.displayName, jobTitle: e.jobTitle, organization: placement.organization, organizationId: e.organizationId, country: placement.country.name, countryCode: e.countryCode }
   })
 
   // Offer only organisations and countries that have people in the sample.
