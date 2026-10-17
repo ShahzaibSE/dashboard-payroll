@@ -51,10 +51,9 @@ export default function ApprovalQueue({ queue }: { queue: Approvals['queue'] }) 
                   <td className="px-4 py-2">
                     <Link
                       to={`/payroll-runs/${row.id}`}
-                      aria-label={`Review ${row.runLabel}`}
                       className="inline-flex h-8 items-center rounded-md border border-input bg-card px-2.5 text-sm font-medium hover:bg-muted"
                     >
-                      Review run
+                      Review run<span className="sr-only">: {row.runLabel}</span>
                     </Link>
                   </td>
                 </tr>

@@ -5,7 +5,7 @@ Current resumable project state. Keep it concise and operational: replace or rem
 
 ## Status
 
-M1–M9 implemented. M1–M8 are committed (`6fe761d`, published on `feat/payrollops-m6-m8`). M9 is committed locally on the same branch (not pushed), awaiting a publication decision.
+M1–M9 implemented, committed and published on `feat/payrollops-m6-m8` (M1–M8 at `6fe761d`, M9 at `8820b53`, the README at `30f1bbb`). `origin/main` is still at `2e3148c`; no pull request was opened from this session. An independent read-only release review of `30f1bbb` raised minor findings, which are being addressed in the working tree (uncommitted).
 
 ## Implemented
 
@@ -21,14 +21,14 @@ M1–M9 implemented. M1–M8 are committed (`6fe761d`, published on `feat/payrol
 
 ## Verification
 
-M9 results, run sequentially: typecheck exit 0; lint clean; `npm test` 419 passed across 33 files (about 11 s; 3 repeat runs identical; 3 runs with 24 CPU spinners on 8 cores passed in about 38 s); `npm run build` exit 0, JS 228.80 kB gzipped (228.68 at M8), CSS 5.58 kB; `git diff --check` clean. Playwright: no horizontal overflow on 8 routes at 1280/768/360 px, no console errors, no requests to other hosts, no localStorage/cookies (only the router's scroll positions in sessionStorage), same-link and fast-typing checks, focus after a workflow action.
+Latest completed checks (release review run at `30f1bbb`: typecheck, lint, tests, build and `git diff --check` all passed; 419 tests across 33 files; JS 228.80 kB, CSS 5.64 kB gzipped; CSS was 5.58 kB at the M9 commit, and the only later change was the README, which Tailwind probably scans for class names). M9 results, run sequentially: typecheck exit 0; lint clean; `npm test` 419 passed across 33 files (about 11 s; 3 repeat runs identical; 3 runs with 24 CPU spinners on 8 cores passed in about 38 s); `npm run build` exit 0, JS 228.80 kB gzipped (228.68 at M8), CSS 5.58 kB; `git diff --check` clean. Playwright: no horizontal overflow on 8 routes at 1280/768/360 px, no console errors, no requests to other hosts, no localStorage/cookies (only the router's scroll positions in sessionStorage), same-link and fast-typing checks, focus after a workflow action.
 
 ## Known issues
 
-- An outside navigation followed by the late landing of the page's own earlier write could leave the URL on the older write (draft is correct); not reproduced in a real browser.
+- URL synchronization: an earlier review suspected that a late landing of the page's own URL write after an outside navigation could leave the URL on the older write. It was not reproduced: the current router (no route loaders or lazy routes) applies navigations in issue order, so the last one issued wins, and a throwaway script run against the real router during the review (not kept in the repository) showed the last write winning in three orderings. It is not a confirmed defect and is not formally proven race-free. Re-verify with a real-router test if route loaders, lazy routes or navigation behaviour change.
 - Manual screen-reader pass pending (none has been run).
 - Cypress is not installed (binary download needs approval); critical journeys run as React Testing Library tests.
 
 ## Next
 
-Publication decision for the M9 commit.
+Commit the release-review remediation when approved, then open a pull request into `main` (a human decision).

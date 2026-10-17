@@ -24,7 +24,14 @@ describe('Approvals page', () => {
     expect(within(rows[0]).getByText('in 2 days')).toBeInTheDocument()
     expect(within(rows[0]).getByText('1 critical exception')).toBeInTheDocument()
     expect(within(rows[1]).getByText('None')).toBeInTheDocument()
-    expect(within(rows[0]).getByRole('link', { name: 'Review Orchard Row Retail · United Kingdom' })).toHaveAttribute('href', '/payroll-runs/run-2026-10-010')
+    expect(within(rows[0]).getByRole('link', { name: 'Review run: Orchard Row Retail · United Kingdom' })).toHaveAttribute('href', '/payroll-runs/run-2026-10-010')
+
+    // WCAG 2.5.3 (Label in Name): every link's accessible name must contain its visible text, so speech-input users can say it.
+    for (const row of rows) {
+      const link = within(row).getByRole('link')
+      expect(link).toHaveAccessibleName(expect.stringContaining('Review run'))
+      expect(link.childNodes[0].textContent).toBe('Review run')
+    }
 
     const decisions = within(card('Recent decisions')).getAllByRole('listitem')
     expect(decisions).toHaveLength(1)
@@ -42,7 +49,7 @@ describe('Approvals page', () => {
     const user = userEvent.setup()
     renderApp('/approvals')
 
-    await user.click(within(queueRows()[4]).getByRole('link', { name: /^Review Kestrel Analytics · Singapore/ }))
+    await user.click(within(queueRows()[4]).getByRole('link', { name: /^Review run: Kestrel Analytics · Singapore/ }))
     await user.click(screen.getByRole('button', { name: 'Approve run' }))
     await user.click(screen.getByRole('button', { name: 'Confirm approval' }))
     await user.click(nav('Approvals'))

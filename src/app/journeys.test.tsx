@@ -86,7 +86,7 @@ describe('journey: clear a blocker, then approve', () => {
     await goTo(user, 'Approvals')
     const orchard = within(card('Awaiting approval')).getAllByRole('row').find((r) => r.textContent?.includes('run-2026-10-010')) as HTMLElement
     expect(within(orchard).getByText('None')).toBeInTheDocument()
-    await user.click(within(orchard).getByRole('link', { name: /^Review Orchard Row Retail · United Kingdom/ }))
+    await user.click(within(orchard).getByRole('link', { name: /^Review run: Orchard Row Retail · United Kingdom/ }))
     expect(screen.getByRole('button', { name: 'Approve run' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Approve run' }))
     await user.click(screen.getByRole('button', { name: 'Confirm approval' }))
@@ -105,7 +105,7 @@ describe('journey: reject, then resubmit', () => {
     const user = userEvent.setup()
     renderApp('/approvals')
 
-    await user.click(screen.getByRole('link', { name: /^Review Tidewater Health · Netherlands/ }))
+    await user.click(screen.getByRole('link', { name: /^Review run: Tidewater Health · Netherlands/ }))
     await user.click(screen.getByRole('button', { name: 'Reject run' }))
     await user.type(screen.getByRole('textbox', { name: 'Reason for rejection' }), 'Allowances are not confirmed.')
     await user.click(screen.getByRole('button', { name: 'Confirm rejection' }))
