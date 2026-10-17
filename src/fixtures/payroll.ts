@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  AuditKind,
   Country,
   ExceptionSeverity,
   ExceptionStatus,
@@ -99,51 +100,53 @@ export const payrollRuns: PayrollRun[] = runSeeds.map(([organizationId, countryC
 
 const runId = (n: number) => `run-2026-10-${pad(n)}`
 
-// [run number, severity, status, title, raised day in October]
-type ExceptionSeed = [number, ExceptionSeverity, ExceptionStatus, string, number]
+// [run number, severity, status, title, raised day in October, assignee (only while in progress)]
+type ExceptionSeed = [number, ExceptionSeverity, ExceptionStatus, string, number, string?]
 const exceptionSeeds: ExceptionSeed[] = [
   [10, 'critical', 'open', 'Net pay differs from the approved baseline by more than 5%', 12],
   [13, 'critical', 'open', 'Bank account validation failed for 4 payees', 12],
-  [10, 'high', 'in_progress', 'Missing tax identifier for 3 employees', 11],
+  [10, 'high', 'in_progress', 'Missing tax identifier for 3 employees', 11, 'Daniel Reyes'],
   [11, 'high', 'open', 'Overtime above the statutory cap for 2 employees', 11],
   [12, 'medium', 'open', 'Allowance rate not confirmed for the pay period', 11],
   [15, 'high', 'open', 'Currency rate awaiting treasury confirmation', 10],
   [16, 'medium', 'open', 'Timesheets submitted after the cut-off for 6 employees', 12],
-  [17, 'medium', 'in_progress', 'Possible duplicate payee on two lines', 11],
+  [17, 'medium', 'in_progress', 'Possible duplicate payee on two lines', 11, 'Mei Tanaka'],
   [19, 'low', 'open', 'Cost centre code missing on 2 lines', 12],
   [20, 'medium', 'open', 'Leave balance adjustment pending', 9],
   [23, 'critical', 'open', 'Statutory filing deadline conflicts with the pay date', 12],
-  [24, 'high', 'in_progress', 'Social contribution rate update not applied', 11],
+  [24, 'high', 'in_progress', 'Social contribution rate update not applied', 11, 'Amara Okafor'],
   [7, 'low', 'resolved', 'Rounding difference on a bonus line', 10],
   [9, 'medium', 'resolved', 'Missing manager approval on an adjustment', 11],
 ]
 
-export const exceptions: PayrollException[] = exceptionSeeds.map(([run, severity, status, title, day], index) => ({
+export const exceptions: PayrollException[] = exceptionSeeds.map(([run, severity, status, title, day, assignee], index) => ({
   id: `exc-${pad(index + 1)}`,
   runId: runId(run),
   severity,
   status,
   title,
   raisedOn: isoDay(day),
+  ...(assignee ? { assignee } : {}),
 }))
 
-// Newest first. [minute-precision timestamp, actor, action, run number]
-type EventSeed = [string, string, string, number]
+// Newest first. [minute-precision timestamp, actor, action, run number, kind]
+type EventSeed = [string, string, string, number, AuditKind]
 const eventSeeds: EventSeed[] = [
-  ['2026-10-12T09:41', 'Lucas Brandt', 'submitted the run for approval', 10],
-  ['2026-10-12T09:12', 'Mei Tanaka', 'raised a critical exception on', 13],
-  ['2026-10-12T08:55', 'Payroll engine', 'recalculated gross-to-net for', 16],
-  ['2026-10-12T08:20', 'Amara Okafor', 'placed the run on hold:', 23],
-  ['2026-10-11T17:48', 'Sofia Lindqvist', 'approved the run', 9],
-  ['2026-10-11T16:30', 'Mei Tanaka', 'resolved an exception on', 9],
-  ['2026-10-11T15:05', 'Daniel Reyes', 'moved the run to review:', 17],
-  ['2026-10-10T18:02', 'Payroll engine', 'marked the run as paid:', 6],
+  ['2026-10-12T09:41', 'Lucas Brandt', 'submitted the run for approval', 10, 'run.submitted'],
+  ['2026-10-12T09:12', 'Mei Tanaka', 'raised a critical exception on', 13, 'exception.raised'],
+  ['2026-10-12T08:55', 'Payroll engine', 'recalculated gross-to-net for', 16, 'run.recalculated'],
+  ['2026-10-12T08:20', 'Amara Okafor', 'placed the run on hold:', 23, 'run.held'],
+  ['2026-10-11T17:48', 'Sofia Lindqvist', 'approved the run', 9, 'run.approved'],
+  ['2026-10-11T16:30', 'Mei Tanaka', 'resolved an exception on', 9, 'exception.resolved'],
+  ['2026-10-11T15:05', 'Daniel Reyes', 'moved the run to review:', 17, 'run.reviewed'],
+  ['2026-10-10T18:02', 'Payroll engine', 'marked the run as paid:', 6, 'run.paid'],
 ]
 
-export const activityEvents: ActivityEvent[] = eventSeeds.map(([occurredAt, actor, action, run], index) => ({
+export const activityEvents: ActivityEvent[] = eventSeeds.map(([occurredAt, actor, action, run, kind], index) => ({
   id: `evt-${pad(index + 1)}`,
   occurredAt,
   actor,
   action,
   runId: runId(run),
+  kind,
 }))

@@ -26,6 +26,12 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((utc(to) - utc(from)) / DAY_MS)
 }
 
+/** "Today, 09:41 UTC" or "11 Oct, 17:48 UTC" for an event timestamp such as 2026-10-11T17:48. */
+export function formatEventTime(today: string, occurredAt: string): string {
+  const [date, time] = occurredAt.split('T')
+  return `${daysBetween(today, date) === 0 ? 'Today' : formatShortDate(date)}, ${time} UTC`
+}
+
 export function relativeDays(from: string, to: string): string {
   const days = daysBetween(from, to)
   if (days === 0) return 'today'

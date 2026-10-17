@@ -5,16 +5,22 @@ Curated durable project knowledge. Keep entries concise. Do not record task prog
 
 ## Architecture Decisions
 
-Durable architectural decisions and their rationale.
+- Shared state is one pure reducer plus one Provider with separate state and dispatch Contexts; no `useSyncExternalStore`, Redux, or Zustand. Business rules live in pure `transitions.ts` guards that the UI and the reducer both use, so the UI cannot offer an action the reducer would refuse. Details are in `docs/engineering/PROJECT.md`.
+- `zod/mini` is used instead of full `zod` (about 18 kB gzipped less) for URL and form validation.
 
 ## Conventions
 
-Project-specific conventions that future sessions need to preserve.
+- Every list page keeps filter, sort, and page state in the URL (through `useUrlDraft`), parses it with one `zod/mini` schema where each field falls back on its own, drops values that match nothing that exists, and writes a canonical URL (fixed order, defaults omitted).
+- After a workflow action, focus goes to the persistent outcome message, never to a button that may have disappeared.
 
 ## Constraints
 
-Important non-obvious technical or product constraints.
+- Frontend-only and simulated. The sample employee directory must not imply which run a person is paid in.
+- Event ids and timestamps are deterministic and are reused after a Reset. Anything that must tell "the state changed" cannot compare ids; compare the identity of the events array, which every action replaces.
 
 ## Lessons
 
-Durable implementation lessons worth retaining across future sessions.
+- Never build the next URL from the current URL: router navigations land after the next user action, so a second filter change, a sort, or a keystroke starts from a stale base and silently drops the earlier choice. Keep a draft of the whole filter state (`useUrlDraft`) and compose every change onto it. jsdom hides this, so tests must delay `router.navigate` (`renderAppWithSlowNavigation`) and the behaviour must also be checked in a real browser with back-to-back actions.
+- A text input whose value is read straight from the URL drops and reorders keystrokes in a real browser, because router navigations land after the next keystroke. jsdom hides this, so tests must delay `router.navigate` to reproduce it, and fast typing must be checked in a real browser. This is the same cause as the dropped-filter bug above.
+- Do not trust hand-counted fixture expectations: derive them from the seed data or compute and then verify the logic, because most test failures in this project were wrong expected numbers, not wrong code.
+- Playwright will not click an `aria-disabled` button; use `force` when checking a deliberate no-op.

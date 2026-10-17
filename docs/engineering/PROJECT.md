@@ -10,19 +10,21 @@ PayrollOps is a global payroll operations dashboard pilot. It is a **frontend-on
 
 All data is deterministic, synthetic, and local. Every action that changes data (approve, reject, resolve, assign) is **simulated**: it updates in-memory state, is shown in the UI as simulated, and resets on reload or via "Reset demo data". Nothing is persisted, and nothing represents a real payment, a real employee, or a security boundary.
 
-Status: the foundation, the design system (`docs/engineering/design-system.md`), the application shell, and the Overview page are built. The other modules are placeholder pages that say they are not built yet. Remaining modules, in delivery order: Payroll Runs, Payroll Details with simulated approval (MVP); then Exceptions, Approvals, Audit Activity, Employees directory.
+Status: all planned modules are built: the application shell and design system (`docs/engineering/design-system.md`), Overview, Payroll Runs, Payroll Details with simulated approval, Exceptions, Approvals, Audit Activity, and the Employees sample directory. M9 hardening (URL synchronization, test reliability, accessibility, shared helpers) is done, committed and published on `feat/payrollops-m6-m8`; it is not merged into `main`.
 
 ## Architecture
 
 - Client-only single-page app. No backend, database, mock server, API client, or artificial latency.
-- Feature-oriented `src/`: `app/` (router, shell, navigation), `components/` (shared pieces such as `PageHeader` and the status badges) and `components/ui/` (hand-written `Button`, `Badge`, `Card`), `features/<name>/` (components and pure logic with their tests; only `overview/` exists so far), `fixtures/` (typed synthetic data, no UI imports), `lib/` (formatting and status presentation helpers), `styles/` (tokens), `test/` (setup and render helper).
-- There is no shared mutable state yet: the Overview reads fixed fixtures through the pure function `buildOverview` (`features/overview/summary.ts`). When simulated approvals arrive, shared state (run status, exceptions, audit events) will be a small store: pure reducers `(state, action) => state`, exposed through `useSyncExternalStore` selector hooks. If the store grows beyond about 60 lines or needs custom equality or memoization, switch to narrowly scoped Contexts per slice instead.
-- Table, sort, filter, and page state lives in URL search params. Dialog and draft state is local to its feature.
+- Feature-oriented `src/`: `app/` (router, shell, navigation), `components/` (shared pieces such as `PageHeader` and the status badges) and `components/ui/` (hand-written `Button`, `Badge`, `Card`), `features/<name>/` (components and pure logic with their tests: `overview`, `payroll-runs`, `run-details`, `exceptions`, `approvals`, `audit`, `employees`), `state/` (shared simulated payroll state), `fixtures/` (typed synthetic data, no UI imports), `lib/` (formatting and status presentation helpers), `styles/` (tokens), `test/` (setup and render helper).
+- Shared state lives in `src/state/payroll/`: one pure reducer `(state, action) => state` (`reducer.ts`, no React imports), one `PayrollStateProvider` mounted around `AppShell` in `routes.tsx`, and separate state and dispatch Contexts (`context.ts`: `usePayrollState`, `usePayrollDispatch`). State is `{ runs, exceptions, events }`; organisations, countries, and the sample employees stay static fixtures. Every page derives its view with a pure function (`buildOverview`, `buildRunList`, `buildRunDetail`, `buildExceptionList`, `buildApprovals`, `buildAuditList`, `buildEmployeeList`), so all views agree. `useSyncExternalStore`, Redux, and Zustand are deliberately not used (decision at Gate 1, 2026-10-14).
+- The workflow rules are pure and live in `src/state/payroll/transitions.ts` (`applyAction` plus the `can*` guards that the UI and the reducer share). Actions: `run/submit` (in review to awaiting approval), `run/approve` (blocked while the run has an unresolved critical exception), `run/reject` (needs a 10 to 300 character reason, returns the run to review), `exception/take`, `exception/resolve` (both refused on paid runs), and `demo/reset`. A refused action returns the same state reference and writes nothing; a successful one appends exactly one audit event. Event ids are the highest existing number plus one, and timestamps are the newest event plus one minute, so both are deterministic and never read the clock. There is one fixed simulated actor (`actor.ts`) and no role switching; nothing is paid, held, or revoked.
+- After any workflow action the clicked button usually disappears, so focus moves to the persistent outcome message (`OutcomeMessage`, `useWorkflowAction`), whose text is hidden once its audit event is no longer the newest (for example after a reset). Approve and reject confirmations are inline regions, not modals. A confirmation is bound to the audit-log array it was opened against (`contextKey` in `RunActions`), because ids repeat after a reset but array identity does not. The run page is keyed by run id so no outcome, confirmation, or draft carries between runs.
+- Table, sort, filter, and page state lives in URL search params. Dialog and draft state is local to its feature. Every URL-driven page follows the `useUrlDraft` pattern (`src/lib/useUrlDraft.ts`): the page works with a draft of the whole filter state, every change composes onto that draft and is then written to the URL with `replace`, and the draft re-syncs from the URL on every navigation the page did not write (Back/Forward, a link, an outside REPLACE, a link to the page's own current URL, which React Router turns into a REPLACE). The page marks its own writes by spreading `OWN_URL_WRITE` (a REPLACE carrying `state.urlDraft`) into `setSearchParams`, and the hook compares `location.key`, not the query text. Building the next URL from the current URL instead drops keystrokes and drops a filter chosen a moment earlier, because router navigations apply asynchronously. A suspected race (a late write by the page landing after an outside navigation and leaving the URL on the older write) was not reproduced: the current router, which has no route loaders or lazy routes, applies navigations in issue order so the last one issued wins. It is not a confirmed defect and is not formally proven absent; re-verify with a real-router test if loaders, lazy routes or navigation behaviour change.
 - No loading or error states: data is synchronous. Empty states are required.
 
 ## Commands
 
-The commands below were verified from a clean `npm ci` at the end of milestone M3 and re-run after the design-system, shell, and Overview work (milestones M4 and M5).
+The commands below were verified from a clean `npm ci` at the end of milestone M3 and re-run after the design-system, shell, and Overview work (milestones M4 and M5) and again after M6 and M9, and at an independent release review of `30f1bbb`.
 
 | Task | Command |
 |------|---------|
@@ -32,7 +34,7 @@ The commands below were verified from a clean `npm ci` at the end of milestone M
 | Type-check | `npm run typecheck` (`tsc -b`) |
 | Build | `npm run build` (type-check, then Vite build) |
 | Run locally | `npm run dev` (Vite dev server); `npm run preview` serves the production build |
-| E2E | not available yet; `npm run e2e` is added with Cypress in milestone M6 (task E1) |
+| E2E | Cypress is not installed (its binary download needed a separate approval). The critical journeys run as cross-module React Testing Library tests over the real route tree (`src/app/journeys.test.tsx`) and an accessibility sweep of every route (`src/app/accessibility.test.tsx`); real-browser checks were done with Playwright during development |
 
 Install note: if the user-level npm cache is not writable, use a temporary cache for the session (for example `npm_config_cache=<temp dir>`) rather than changing npm configuration or ownership.
 
@@ -41,11 +43,10 @@ Install note: if the user-level npm cache is not writable, use a temporary cache
 - `docs/engineering/`: tool-neutral standards, workflows, and profile guidance (generated; this file is project-owned).
 - `.claude/`: agent configuration, path-scoped rules, workflow skills, and the `code-reviewer` agent (generated).
 - `src/`: application code (see Architecture).
-- `cypress/e2e/`: end-to-end journeys (added at M6).
 
 ## Technology decisions
 
-Installed now: React, TypeScript, Vite, Tailwind CSS, React Router, class-variance-authority, lucide-react, Recharts, Vitest + React Testing Library + jest-dom + user-event + jsdom, vitest-axe (for its `axe` function). The remaining rows (TanStack Table, Zod, Cypress, Storybook) are **planned** and are added only by the task that needs them.
+Installed now: Zod (imported only as `zod/mini`, to keep the bundle small), React, TypeScript, Vite, Tailwind CSS, React Router, class-variance-authority, lucide-react, Recharts, Vitest + React Testing Library + jest-dom + user-event + jsdom, vitest-axe (for its `axe` function). The remaining rows (TanStack Table, Cypress, Storybook) are **not installed**; add one only for a task that needs it and has approval.
 
 | Area | Decision |
 |------|----------|
@@ -57,9 +58,9 @@ Installed now: React, TypeScript, Vite, Tailwind CSS, React Router, class-varian
 | Icons | lucide-react |
 | Variants | class-variance-authority, with the `cn` helper (`clsx` + `tailwind-merge`) |
 | Charts | Recharts (the Overview country chart; it brings Redux Toolkit transitively as an internal detail, which the app does not use) |
-| Tables | TanStack Table |
-| Validation | Zod (fixture schema, reject-reason input); controlled inputs, no form library |
-| Tests | Vitest + React Testing Library + jest-dom (jsdom), vitest-axe; Cypress for 3-4 critical journeys; Storybook at the quality gate |
+| Tables | Hand-written semantic tables with pure sort/filter functions (see `features/payroll-runs/`); TanStack Table is not installed and needs a reason to be added |
+| Validation | Zod via `zod/mini` (URL search params on every list page, and the reject-reason input); controlled inputs, no form library |
+| Tests | Vitest + React Testing Library + jest-dom (jsdom), vitest-axe; Cross-module journeys as React Testing Library tests (Cypress and Storybook are not installed; see the E2E row) |
 | Package manager | npm |
 | Not used | TanStack Query, Redux or Zustand, Jest, MSW, any mock server |
 
@@ -68,7 +69,12 @@ Installed now: React, TypeScript, Vite, Tailwind CSS, React Router, class-varian
 - `components.json` and `src/lib/utils.ts` (the `cn` helper) were created by hand after inspecting what the shadcn CLI generates on a scratch copy. The CLI has not been run in this project: it would add `cn` (a third-party package), `@fontsource-variable/geist`, `radix-ui`, `shadcn`, `tw-animate-css` and a default Button. Revisit if a primitive needs real focus-trapping or positioning (for example a modal dialog or menu).
 - The mobile navigation is a disclosure, not a modal; see `design-system.md`.
 - Data dates come from `REFERENCE_DATE` in `src/fixtures/reference.ts`, which is the fixed "today" for all synthetic data and for relative dates such as "in 2 days".
-- Known limitations: on the narrowest phones the chart axis label "United Kingdom" wraps onto two lines; Recharts is bundled eagerly (about 208 kB gzipped in total), so the profile's advice to load heavy charts lazily is not yet applied.
+- Known limitations: on the narrowest phones the chart axis label "United Kingdom" wraps onto two lines; Recharts is bundled eagerly (the JS bundle is about 229 kB gzipped after M8, up from 209 kB at M5, of which about 8 kB is `zod/mini`), so the profile's advice to load heavy charts lazily is not yet applied.
+- Shared helpers from M9: `src/lib/placement.ts` (`createPlacement`: organisation and country names and the "Organisation · Country" label, used by every page builder) and `src/components/ResultCount.tsx` (the visible "Showing x of y" line plus a polite live region that announces after 800 ms of stability, with different wording so it is not read twice).
+- Blocked Approve is `aria-disabled` (not `disabled`), so it is focusable, announces its reason through `aria-describedby`, and does nothing when activated. The sticky header is about 91 px tall at 360 px (Reset sits beside the title; the simulation notice has its own row).
+- Known issues, accepted: "Clear filters" also resets the sort; no manual screen-reader pass has been run.
+- Slow tests: `testTimeout` is 15 s in the three heaviest files (`journeys` uses 30 s); the slowest test takes about 1.4 s idle and the suite passes under 3x CPU oversubscription.
+- Sample employees (`src/fixtures/employees.ts`) are tied to an organisation and a country only. Nothing says which run a person is paid in, so there is no run link or run filter; do not add one without modelling the relationship first.
 - `src/app/App.tsx` creates the browser router once at module scope (the documented pattern). Tests that need a specific route or navigation must use `createMemoryRouter(routes, ...)`, as `routes.test.tsx` does, and not render `<App />`.
 - The accessibility test uses `axe` results directly (`expect(results.violations).toEqual([])`) because the `vitest-axe` matcher types do not compile with the installed Vitest version.
 

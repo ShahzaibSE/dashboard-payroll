@@ -15,6 +15,18 @@ export type Country = {
 }
 export type Organization = { id: string; name: string }
 
+/**
+ * A fictional person in the sample directory. It is tied to an organisation and a country only: nothing here says which
+ * payroll run a person is paid in, and there is deliberately no pay, bank, tax, birth, contact, or address information.
+ */
+export type Employee = {
+  id: string
+  displayName: string
+  organizationId: string
+  countryCode: string
+  jobTitle: string
+}
+
 export type PayrollRun = {
   id: string
   organizationId: string
@@ -39,7 +51,22 @@ export type PayrollException = {
   title: string
   /** ISO date. */
   raisedOn: string
+  /** Who is working on it. Set exactly when the status is `in_progress`; a resolved exception drops its assignee. */
+  assignee?: string
 }
+
+/** Machine-readable meaning of an audit event; `action` stays the human sentence. */
+export type AuditKind =
+  | 'run.submitted'
+  | 'run.approved'
+  | 'run.rejected'
+  | 'run.held'
+  | 'run.paid'
+  | 'run.reviewed'
+  | 'run.recalculated'
+  | 'exception.raised'
+  | 'exception.taken'
+  | 'exception.resolved'
 
 export type ActivityEvent = {
   id: string
@@ -49,4 +76,7 @@ export type ActivityEvent = {
   /** What happened, as a verb phrase that follows the actor. */
   action: string
   runId: string
+  kind: AuditKind
+  /** Why a run was sent back; present only on `run.rejected`. */
+  reason?: string
 }
