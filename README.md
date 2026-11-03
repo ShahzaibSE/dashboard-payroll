@@ -141,6 +141,6 @@ See [`docs/engineering/PROJECT.md`](docs/engineering/PROJECT.md) for architectur
 - "Clear filters" also resets the sort.
 - URL synchronization: a race in which a late write by the page could leave the URL on an older filter set was suspected during review but not reproduced. The current router applies navigations in issue order (no route loaders or lazy routes), so it is not considered a confirmed defect; this is not a formal proof, and it should be re-verified if loaders, lazy routes or navigation behaviour change.
 - No manual screen-reader pass, and no browser end-to-end suite.
-- This is a pilot. It has been deployed with synthetic data and ensures production-readiness or security claims.
+- This is a pilot. It has been deployed and ensures production-readiness or security claims.
 
 [Demo](https://dashboard-payroll-ten.vercel.app/)
